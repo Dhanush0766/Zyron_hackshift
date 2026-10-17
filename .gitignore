@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+backend/medgate.db*
+firmware/.pio/
+firmware/.build/
+firmware/include/secrets.h
+ui-*.png
+_cursor_backup/
+_to_delete/
+backend/setup.log
+*.tgz

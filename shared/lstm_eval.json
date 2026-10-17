@@ -1,0 +1,13 @@
+{
+  "data": "SYNTHETIC (generator in tools/lstm_train.py builds in a gate-failure effect)",
+  "train_users": 160,
+  "test_users": 40,
+  "sessions_per_user": 60,
+  "metric": "MAE of next-session pickup latency, minutes, held-out users, after 5 warm-up sessions",
+  "static_mean_baseline": 5.31,
+  "rolling_same_session_baseline": 3.96,
+  "lstm_without_gate_features": 3.48,
+  "lstm_with_gate_features": 3.16,
+  "params": 973,
+  "weights_bytes_float32": 3892
+}

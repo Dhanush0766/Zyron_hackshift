@@ -1,0 +1,9 @@
+# Pinned to the wheels shipped in backend/wheels (Windows, Python 3.10, offline install).
+fastapi==0.143.3
+starlette==1.7.0
+uvicorn==0.54.0
+pydantic==2.14.1
+pydantic_core==2.50.1
+httpx==0.28.1
+pytest==9.1.1
+colorama==0.4.6
