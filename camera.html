@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ESP32-CAM | Mouth Detection</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b1020;
+      --panel: #121a2d;
+      --panel-2: #19243b;
+      --text: #edf2ff;
+      --muted: #9eacc7;
+      --accent: #7c9cff;
+      --green: #39d98a;
+      --red: #ff6b75;
+      --amber: #ffc857;
+      --border: rgba(255,255,255,.10);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      padding: 28px 16px 40px;
+      background: radial-gradient(circle at top left, #17264b 0, var(--bg) 42rem);
+      color: var(--text);
+      font: 15px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    main { max-width: 1100px; margin: 0 auto; }
+    header { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; }
+    h1 { font-size: clamp(1.55rem, 3vw, 2.25rem); margin: 0 0 4px; letter-spacing: -.035em; }
+    p { margin: 0; color: var(--muted); }
+    .eyebrow { color: #a9bbff; text-transform: uppercase; letter-spacing: .14em; font-size: .75rem; font-weight: 750; margin-bottom: 6px; }
+    .layout { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(270px, .8fr); gap: 18px; }
+    .panel { background: rgba(18,26,45,.92); border: 1px solid var(--border); border-radius: 18px; overflow: hidden; box-shadow: 0 18px 50px rgba(0,0,0,.22); }
+    .panel-head { padding: 17px 19px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+    .panel-head h2 { font-size: 1rem; margin: 0; }
+    .feed-wrap { position: relative; min-height: 260px; background: #050812; display: grid; place-items: center; }
+    #cameraFeed { display: block; width: 100%; max-height: 68vh; min-height: 260px; object-fit: contain; }
+    .feed-placeholder { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; padding: 24px; pointer-events: none; }
+    .feed-placeholder strong { font-size: 1.05rem; margin-bottom: 6px; }
+    .feed-placeholder span { max-width: 360px; color: var(--muted); font-size: .88rem; }
+    .feed-placeholder.hidden { display: none; }
+    .controls { display: flex; gap: 10px; flex-wrap: wrap; padding: 16px 19px; border-top: 1px solid var(--border); }
+    button, a.button { appearance: none; border: 0; border-radius: 10px; padding: 10px 15px; font: inherit; font-weight: 700; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+    .primary { background: var(--accent); color: #071026; }
+    .secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    .side { padding: 18px; }
+    .side h2 { margin: 0 0 14px; font-size: 1rem; }
+    .status-card { background: var(--panel-2); border: 1px solid var(--border); border-radius: 14px; padding: 17px; margin-bottom: 14px; }
+    .status-label { color: var(--muted); font-size: .8rem; margin-bottom: 8px; }
+    .status-value { font-size: 1.55rem; font-weight: 800; letter-spacing: -.03em; }
+    .status-value.open { color: var(--green); }
+    .status-value.closed { color: #b9c8e7; }
+    .status-value.warn { color: var(--amber); }
+    .status-value.error { color: var(--red); }
+    .pill { display: inline-flex; align-items: center; gap: 7px; border-radius: 999px; padding: 5px 10px; font-size: .78rem; font-weight: 750; background: rgba(255,255,255,.07); color: var(--muted); }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    .detail { font-size: .88rem; color: var(--muted); overflow-wrap: anywhere; }
+    .detail strong { color: var(--text); font-weight: 650; }
+    .notice { border: 1px solid rgba(255,200,87,.25); background: rgba(255,200,87,.07); border-radius: 12px; padding: 12px; font-size: .84rem; color: #f2d99a; margin-top: 14px; }
+    .good-note { border-color: rgba(57,217,138,.22); background: rgba(57,217,138,.06); color: #a5f0c9; }
+    .steps { padding-left: 18px; color: var(--muted); font-size: .86rem; }
+    .steps li { margin: 7px 0; }
+    .url { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; word-break: break-all; color: #c8d5ff; }
+    footer { color: var(--muted); font-size: .8rem; margin-top: 18px; }
+    @media (max-width: 800px) { .layout { grid-template-columns: 1fr; } body { padding-top: 18px; } }
+    body.embedded { padding-top: 0 !important; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <div class="eyebrow">Local vision demo</div>
+      <h1>ESP32-CAM Mouth Detection</h1>
+      <p>Live camera feed with in-browser mouth status estimation.</p>
+    </div>
+    <a class="button secondary" id="backLink" href="/#caretaker" target="_top">← Back to MedGate</a>
+  </header>
+
+  <div class="layout">
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Camera feed</h2>
+        <span class="pill" id="cameraPill"><span class="dot"></span><span id="cameraPillText">Stopped</span></span>
+      </div>
+      <div class="feed-wrap">
+        <img id="cameraFeed" alt="ESP32-CAM live stream">
+        <div class="feed-placeholder" id="feedPlaceholder">
+          <strong>Camera is stopped</strong>
+          <span>Press “Start camera” to connect to the ESP32-CAM stream.</span>
+        </div>
+      </div>
+      <div class="controls">
+        <button class="primary" id="startBtn">▶ Start camera</button>
+        <button class="secondary" id="stopBtn" disabled>■ Stop camera</button>
+        <button class="secondary" id="retryModelBtn">↻ Retry detector</button>
+      </div>
+    </section>
+
+    <aside class="panel">
+      <div class="side">
+        <h2>Detection status</h2>
+        <div class="status-card">
+          <div class="status-label">Mouth state</div>
+          <div class="status-value warn" id="mouthState">Waiting…</div>
+          <p class="detail" id="mouthDetail">Start the camera to begin detection.</p>
+        </div>
+        <div class="status-card">
+          <div class="status-label">Face detector</div>
+          <div class="status-value warn" id="modelState" style="font-size:1.05rem">Loading model…</div>
+          <p class="detail" id="modelDetail">MediaPipe runs in this browser. Initial setup needs an internet connection unless assets are hosted locally.</p>
+        </div>
+        <div class="status-card">
+          <div class="status-label">Stream address</div>
+          <div class="url" id="streamUrlText">http://192.168.160.160:81/stream</div>
+          <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+            <input id="ipInput" value="192.168.160.160" aria-label="ESP32-CAM IP address"
+              style="flex:1;min-width:140px;padding:8px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:rgba(0,0,0,.25);color:inherit;font:inherit">
+            <button class="secondary" id="saveIpBtn">Save IP</button>
+          </div>
+          <label style="display:flex;gap:6px;align-items:center;margin-top:10px;font-size:.9rem">
+            <input type="checkbox" id="autoStart" checked> Start camera automatically and reconnect if it drops
+          </label>
+          <p class="detail" style="margin-top:8px">Test it: <a id="testLink" href="#" target="_blank" rel="noopener" style="color:inherit">open the stream in a new tab</a></p>
+        </div>
+        <div class="notice" id="corsNotice">
+          If the video displays but detection reports a CORS/canvas error, the ESP32-CAM stream server must send
+          <strong>Access-Control-Allow-Origin: *</strong>. See the integration notes below.
+        </div>
+        <div class="notice good-note">
+          Mouth status is an estimate from facial landmarks, not a medical or safety-grade measurement. Face video is processed in this browser and is not uploaded by this page.
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <section class="panel" style="margin-top:18px">
+    <div class="side">
+      <h2>Setup and troubleshooting</h2>
+      <ol class="steps">
+        <li>Replace the example stream URL in this file if your ESP32-CAM uses a different IP or endpoint.</li>
+        <li>Open this page through your local web server (for example, <span class="url">http://localhost:5500/camera.html</span>), not by double-clicking the file.</li>
+        <li>Your computer and ESP32-CAM must be on the same network. Test the stream URL directly in a browser first.</li>
+        <li>For browser-side analysis, the stream must be readable by canvas. The ESP32-CAM response needs the CORS header <span class="url">Access-Control-Allow-Origin: *</span> (and a compatible response to any preflight request, if applicable).</li>
+        <li>If you cannot change the ESP32 firmware, use a small same-origin server-side proxy that relays the stream and adds the appropriate CORS headers. Do not use a public CORS proxy for private camera video.</li>
+      </ol>
+    </div>
+  </section>
+  <footer>MediaPipe Face Landmarker · Local browser inference · No recording or saving is performed.</footer>
+</main>
+
+<script type="module">
+  // MediaPipe is loaded lazily, so the camera works even with no internet (detection then waits).
+  const MP = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22";
+  const MODEL_URL = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
+  const WASM_URL = MP + "/wasm";
+  const DEFAULT_IP = "192.168.160.160";
+
+  const $ = (id) => document.getElementById(id);
+  const feed = $("cameraFeed"), placeholder = $("feedPlaceholder");
+  const startBtn = $("startBtn"), stopBtn = $("stopBtn"), retryModelBtn = $("retryModelBtn");
+  const cameraPillText = $("cameraPillText"), mouthState = $("mouthState"), mouthDetail = $("mouthDetail");
+  const modelState = $("modelState"), modelDetail = $("modelDetail");
+  const ipInput = $("ipInput"), autoStart = $("autoStart");
+
+  const store = { get(k, d) { try { return localStorage.getItem(k) ?? d; } catch (e) { return d; } },
+                  set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
+  const urlIp = new URLSearchParams(location.search).get("ip");
+  let camIp = (urlIp || store.get("esp32cam-ip", DEFAULT_IP)).trim();
+  autoStart.checked = store.get("esp32cam-auto", "1") === "1";
+  const streamUrl = () => "http://" + camIp + ":81/stream";
+  function showUrl() {
+    ipInput.value = camIp;
+    $("streamUrlText").textContent = streamUrl();
+    $("testLink").href = streamUrl();
+  }
+  showUrl();
+
+  let landmarker = null, loadingModel = null;
+  let running = false, animationId = null, lastDetectionTime = 0;
+  let lastState = "unknown", stableCount = 0;
+  let corsMode = true;          // try CORS first (needed for detection), fall back to view-only
+  let watchdog = null, lastFrameSeen = 0, reconnectTimer = null, attempts = 0;
+  const analysisCanvas = document.createElement("canvas");
+  analysisCanvas.width = 640; analysisCanvas.height = 480;
+  const ctx = analysisCanvas.getContext("2d", { willReadFrequently: true });
+
+  function setMouth(text, kind, detail) { mouthState.textContent = text; mouthState.className = "status-value " + kind; mouthDetail.textContent = detail; }
+  function setCameraStatus(text) { cameraPillText.textContent = text; }
+  function showPlaceholder(title, text) {
+    placeholder.classList.remove("hidden");
+    placeholder.querySelector("strong").textContent = title;
+    placeholder.querySelector("span").textContent = text;
+  }
+
+  async function createLandmarker(useGpu) {
+    const { FilesetResolver, FaceLandmarker } = await import(MP);
+    const vision = await FilesetResolver.forVisionTasks(WASM_URL);
+    return FaceLandmarker.createFromOptions(vision, {
+      baseOptions: useGpu ? { modelAssetPath: MODEL_URL, delegate: "GPU" } : { modelAssetPath: MODEL_URL },
+      runningMode: "VIDEO", numFaces: 1 });
+  }
+  function loadDetector() {
+    if (landmarker) return Promise.resolve(true);
+    if (loadingModel) return loadingModel;
+    modelState.textContent = "Loading model…"; modelState.className = "status-value warn";
+    modelDetail.textContent = "Downloading MediaPipe (needs internet the first time). The camera works meanwhile.";
+    loadingModel = (async () => {
+      try { landmarker = await createLandmarker(true); modelState.textContent = "Ready"; }
+      catch (e) {
+        try { landmarker = await createLandmarker(false); modelState.textContent = "Ready (CPU)"; }
+        catch (e2) {
+          modelState.textContent = "Load failed"; modelState.className = "status-value error";
+          modelDetail.textContent = "Could not load MediaPipe: no internet, or the CDN is blocked on this network. The live video still works. Press Retry detector when online. (" + e2.message + ")";
+          return false;
+        }
+      }
+      modelState.className = "status-value open";
+      modelDetail.textContent = "Face landmarks loaded.";
+      if (running) startDetectionLoop();
+      return true;
+    })().finally(() => { loadingModel = null; });
+    return loadingModel;
+  }
+
+  function connect() {
+    if (!running) return;
+    attempts++;
+    setCameraStatus(attempts > 1 ? "Reconnecting…" : "Connecting…");
+    if (lastFrameSeen === 0) showPlaceholder("Connecting to camera…", "Looking for the ESP32-CAM at " + streamUrl());
+    feed.onerror = () => {
+      if (!running) return;
+      if (corsMode) {                 // stream works but has no CORS header: show it anyway
+        corsMode = false;
+        modelDetail.textContent = "Camera has no CORS header: video shown, detection off. Upload the fixed ESP32 sketch to enable detection.";
+        connect();
+        return;
+      }
+      setCameraStatus("Camera not reachable");
+      showPlaceholder("Cannot reach the camera", "Check: the ESP32-CAM is powered and shows this IP on Serial Monitor, and this PC is on the same Wi-Fi (" + camIp + "). Retrying…");
+      scheduleReconnect(3000);
+    };
+    if (corsMode) feed.crossOrigin = "anonymous"; else feed.removeAttribute("crossorigin");
+    feed.src = streamUrl() + "?t=" + Date.now();
+  }
+  function scheduleReconnect(ms) {
+    clearTimeout(reconnectTimer);
+    if (running && autoStart.checked) reconnectTimer = setTimeout(() => { corsMode = true; connect(); }, ms);
+    else if (running) stopCamera("Stream lost. Press Start camera to try again.");
+  }
+
+  function startCamera() {
+    if (running) return;
+    running = true; attempts = 0; lastFrameSeen = 0; corsMode = true;
+    lastState = "unknown"; stableCount = 0;
+    startBtn.disabled = true; stopBtn.disabled = false;
+    setMouth("Connecting…", "warn", "Waiting for the ESP32-CAM stream.");
+    connect();
+    // MJPEG streams do not fire load events reliably: watch the image size instead.
+    clearInterval(watchdog);
+    let lastW = 0, sameSince = performance.now();
+    watchdog = setInterval(() => {
+      if (!running) return;
+      if (feed.naturalWidth > 0) {
+        if (lastFrameSeen === 0) {
+          placeholder.classList.add("hidden");
+          setCameraStatus(corsMode ? "Live" : "Live (view only)");
+          attempts = 1;
+          startDetectionLoop();
+        }
+        lastFrameSeen = performance.now();
+      } else if (performance.now() - sameSince > 8000 && lastFrameSeen === 0) {
+        sameSince = performance.now();
+        setCameraStatus("No frames yet");
+        scheduleReconnect(500);
+      }
+      lastW = feed.naturalWidth;
+    }, 1000);
+  }
+
+  function stopCamera(msg) {
+    running = false;
+    clearInterval(watchdog); clearTimeout(reconnectTimer);
+    if (animationId) cancelAnimationFrame(animationId);
+    animationId = null; lastFrameSeen = 0;
+    feed.onerror = null; feed.removeAttribute("src");
+    showPlaceholder("Camera is stopped", typeof msg === "string" ? msg : "Press “Start camera” to connect to the ESP32-CAM stream.");
+    setCameraStatus("Stopped");
+    setMouth("Stopped", "warn", "Start the camera to begin detection.");
+    startBtn.disabled = false; stopBtn.disabled = true;
+  }
+
+  const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  function detectMouth() {
+    animationId = null;
+    if (!running) return;
+    if (!landmarker || !corsMode || feed.naturalWidth === 0) { animationId = requestAnimationFrame(detectMouth); return; }
+    const now = performance.now();
+    if (now - lastDetectionTime < 100) { animationId = requestAnimationFrame(detectMouth); return; }
+    lastDetectionTime = now;
+    try {
+      ctx.drawImage(feed, 0, 0, analysisCanvas.width, analysisCanvas.height);
+      ctx.getImageData(0, 0, 1, 1);
+      const face = landmarker.detectForVideo(analysisCanvas, now).faceLandmarks?.[0];
+      if (!face) { setMouth("Face not found", "warn", "Keep the face centred, close enough, and well lit."); }
+      else {
+        const ratio = distance(face[61], face[291]) > 0 ? distance(face[13], face[14]) / distance(face[61], face[291]) : 0;
+        const st = ratio > 0.075 ? "open" : "closed";
+        if (st === lastState) stableCount++; else { lastState = st; stableCount = 1; }
+        if (stableCount >= 2) setMouth(st === "open" ? "MOUTH OPEN" : "MOUTH CLOSED", st, "Mouth gap ratio: " + ratio.toFixed(3) + " · Threshold: 0.075");
+        else setMouth("Checking…", "warn", "Stabilising mouth state.");
+      }
+    } catch (error) {
+      // Video keeps playing; only detection is blocked.
+      corsMode = false;
+      setCameraStatus("Live (view only)");
+      setMouth("Detection blocked", "error", "The camera does not allow this page to read frames (CORS). Upload the fixed ESP32 sketch. Video keeps running.");
+    }
+    animationId = requestAnimationFrame(detectMouth);
+  }
+  function startDetectionLoop() {
+    if (!running) return;
+    if (!landmarker) { setMouth("Video live", "warn", "Detector still loading or offline. Video keeps running."); loadDetector(); }
+    if (!animationId) animationId = requestAnimationFrame(detectMouth);
+  }
+
+  startBtn.addEventListener("click", () => { startCamera(); loadDetector(); });
+  stopBtn.addEventListener("click", () => stopCamera());
+  retryModelBtn.addEventListener("click", async () => {
+    if (landmarker) { landmarker.close(); landmarker = null; }
+    await loadDetector();
+  });
+  $("saveIpBtn").addEventListener("click", () => {
+    const v = ipInput.value.trim().replace(/^https?:\/\//, "").replace(/[:/].*$/, "");
+    if (!/^[\w.-]+$/.test(v)) { ipInput.focus(); return; }
+    camIp = v; store.set("esp32cam-ip", v); showUrl();
+    if (running) { stopCamera(); startCamera(); }
+  });
+  autoStart.addEventListener("change", () => store.set("esp32cam-auto", autoStart.checked ? "1" : "0"));
+  document.addEventListener("visibilitychange", () => {   // tab back in view: make sure it is still live
+    if (!document.hidden && running && feed.naturalWidth === 0) scheduleReconnect(200);
+  });
+
+  // Inside the MedGate Caretaker page: no back button, always start straight away.
+  const embedded = window.top !== window || new URLSearchParams(location.search).has("embed");
+  if (embedded) { $("backLink")?.remove(); document.body.classList.add("embedded"); }
+  loadDetector();
+  if (autoStart.checked || embedded) startCamera();
+  window.addEventListener("beforeunload", () => { if (landmarker) landmarker.close(); });
+</script>
+</body>
+</html>
