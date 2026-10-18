@@ -7,6 +7,18 @@
 - MAX30102 accuracy is affected by motion, skin tone, nail polish and light. The device's quality value is a proxy from the algorithm's validity flags.
 - Demo with dummy, non-ingestible tablets only.
 
+## Medicines and purchasing
+- Medicine data is a dated snapshot of an open dataset (MRP as listed then); it is not a live price or availability feed.
+- Published tablet weights exist for only 4 compositions, and they come from other brands than the Indian ones in the boxes (amlodipine 10 mg ranges 162–323 mg between brands). Calibrate each box by weighing 10 tablets before trusting the weight.
+- Simulator boxes without a published weight use a simulated weight, labelled as such.
+- Pharmacy platforms, their stock and prices, and payments are simulated. Nothing is bought; no card or UPI details are collected.
+
+## Logins
+- Demo accounts are created with fixed passwords (LOGINS.md); anyone with the source code knows them until they are changed on the Users page.
+- The dashboard runs over plain HTTP on the LAN. Passwords cross the network unencrypted; real use needs HTTPS.
+- No "forgot password" e-mail: the admin resets passwords. Sessions are stored in the same SQLite file.
+- All patients share one database file; separation is enforced by the server on every request (per-patient links), not by separate files.
+
 ## Deviations from the IDF-B (deliberate, documented in FEATURE_TRACEABILITY.md)
 - A named reviewer can override a gate suppression (IDF-B cancels the cycle).
 - Limit switch is the belt end-stop; the load cell confirms tablet arrival.
