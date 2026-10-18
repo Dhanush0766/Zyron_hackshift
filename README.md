@@ -1,9 +1,10 @@
-# MedGate: health-gated, closed-loop medication dispenser (hackathon prototype)
+<img width="1280" height="575" alt="image" src="https://github.com/user-attachments/assets/6209f79f-5928-4798-8586-01d9e112dfbf" /><img width="1280" height="575" alt="image" src="https://github.com/user-attachments/assets/29d8505a-bf5b-4007-8f52-e98eca2495a4" /># MedGate: health-gated, closed-loop medication dispenser (hackathon prototype)
 
 Theme: **Healthcare & Well-being: Reimagining Healthcare Through Technology**.
 Implements our IDF-B invention disclosure (VIT IPR&TT Cell, Doc. 02-IPR-R003, 29.04.2026): health-gated multi-compartment dispensing with conveyor delivery, LSTM compliance prediction, physiologically-conditioned 4-level escalation, closed-loop dual-sensor compliance verification, and doctor/caretaker portals.
 
 > **Prototype for demonstration with dummy, non-ingestible tablets only.** Gate thresholds are the IDF-B example values, not clinical guidance. Tray sensors show a tablet was removed, not that it was swallowed.
+![Uploading prototype.jpg…]()
 
 ## What it does
 
